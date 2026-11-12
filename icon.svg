@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3f8a64"/>
+      <stop offset="1" stop-color="#1f4d38"/>
+    </linearGradient>
+    <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf6"/>
+      <stop offset="1" stop-color="#f1e6d2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- liście -->
+  <path d="M256 92c-34 18-52 46-50 80 30-4 52-26 50-80z" fill="#9fdb7a"/>
+  <path d="M262 100c30 10 50 34 52 66-28-2-50-24-52-66z" fill="#7fc95c"/>
+  <path d="M256 168v34" stroke="#7fc95c" stroke-width="10" stroke-linecap="round"/>
+  <!-- otwarta książka -->
+  <path d="M96 196c56-14 110-8 160 22v196c-50-30-104-36-160-22z" fill="url(#pg)"/>
+  <path d="M416 196c-56-14-110-8-160 22v196c50-30 104-36 160-22z" fill="url(#pg)"/>
+  <path d="M256 218v196" stroke="#d9c8a8" stroke-width="6"/>
+  <!-- przewracana kartka -->
+  <path d="M256 218c40-34 92-46 140-40-26 40-34 120-36 214-40-6-76 2-104 22z" fill="#ffffff" opacity=".92"/>
+  <g stroke="#cdbb98" stroke-width="8" stroke-linecap="round">
+    <path d="M128 240c34-6 70-2 100 12M128 280c34-6 70-2 100 12M128 320c34-6 70-2 100 12"/>
+  </g>
+  <path d="M96 392c56-14 110-8 160 22 50-30 104-36 160-22v22c-56-12-110-4-160 26-50-30-104-38-160-26z" fill="#e98a3b"/>
+</svg>

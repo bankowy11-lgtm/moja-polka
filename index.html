@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Moja Półka</title>
+  <meta name="description" content="Czytnik książek z biblioteką i płynnym przewracaniem kartek.">
+  <meta name="theme-color" content="#2f6b4f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== BIBLIOTEKA ===================== -->
+<section id="library" class="screen">
+  <header class="lib-header">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="40" height="40">
+      <h1>Moja Półka</h1>
+    </div>
+    <button id="addBtn" class="btn btn-primary" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Dodaj książkę</span>
+    </button>
+    <input id="fileInput" type="file" accept=".epub,.txt,application/epub+zip,text/plain" multiple hidden>
+  </header>
+
+  <main class="lib-main">
+    <div id="continue" class="continue" hidden></div>
+    <h2 class="shelf-title">Moje książki <span id="bookCount"></span></h2>
+    <div id="shelf" class="shelf"></div>
+    <div id="empty" class="empty" hidden>
+      <p>Półka jest pusta.</p>
+      <p>Kliknij <b>Dodaj książkę</b> i wybierz plik <b>EPUB</b> lub <b>TXT</b>.</p>
+    </div>
+    <p class="lib-foot">
+      Darmowe książki do pobrania (EPUB): <a href="https://wolnelektury.pl/" target="_blank" rel="noopener">wolnelektury.pl</a>.
+      Książki z księgarni z zabezpieczeniem DRM nie otworzą się w tej aplikacji.
+    </p>
+  </main>
+</section>
+
+<!-- ===================== CZYTNIK ===================== -->
+<section id="reader" class="screen" hidden>
+  <div id="stage" class="stage"></div>
+  <div id="measure" class="measure" aria-hidden="true"></div>
+
+  <div id="rTop" class="rbar rbar-top">
+    <button class="icon-btn" id="backBtn" type="button" aria-label="Wróć do biblioteki">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="rtitle" id="rTitle"></div>
+    <button class="icon-btn" id="bmBtn" type="button" aria-label="Zakładka">
+      <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+    </button>
+    <button class="icon-btn" id="tocBtn" type="button" aria-label="Spis treści">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </button>
+    <button class="icon-btn" id="setBtn" type="button" aria-label="Wygląd tekstu">
+      <svg viewBox="0 0 24 24"><path d="M3 19l5-14 5 14M5 14h6M15 19l3.5-9 3.5 9M16 16h5"/></svg>
+    </button>
+  </div>
+
+  <div id="rBottom" class="rbar rbar-bottom">
+    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Przejdź do miejsca w książce">
+    <div id="seekInfo" class="seek-info"></div>
+  </div>
+
+  <!-- Spis treści i zakładki -->
+  <div id="tocPanel" class="sheet" hidden>
+    <div class="sheet-card">
+      <div class="tabs">
+        <button type="button" class="tab active" data-tab="toc">Spis treści</button>
+        <button type="button" class="tab" data-tab="bm">Zakładki</button>
+        <button type="button" class="icon-btn close-sheet" aria-label="Zamknij">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <ol id="tocList" class="list"></ol>
+      <ul id="bmList" class="list" hidden></ul>
+    </div>
+  </div>
+
+  <!-- Ustawienia tekstu -->
+  <div id="setPanel" class="sheet" hidden>
+    <div class="sheet-card">
+      <div class="tabs">
+        <span class="sheet-title">Wygląd tekstu</span>
+        <button type="button" class="icon-btn close-sheet" aria-label="Zamknij">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="set-row">
+        <span>Wielkość liter</span>
+        <div class="stepper">
+          <button type="button" id="fontMinus" aria-label="Mniejsze litery">A−</button>
+          <output id="fontVal">20</output>
+          <button type="button" id="fontPlus" aria-label="Większe litery">A+</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <span>Kolor strony</span>
+        <div class="seg" id="themeSeg">
+          <button type="button" data-v="light" class="sw sw-light">Jasny</button>
+          <button type="button" data-v="sepia" class="sw sw-sepia">Sepia</button>
+          <button type="button" data-v="dark" class="sw sw-dark">Nocny</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <span>Czcionka</span>
+        <div class="seg" id="fontSeg">
+          <button type="button" data-v="serif" class="f-serif">Książkowa</button>
+          <button type="button" data-v="sans" class="f-sans">Prosta</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <span>Odstęp linii</span>
+        <div class="seg" id="lhSeg">
+          <button type="button" data-v="1.45">Mały</button>
+          <button type="button" data-v="1.65">Średni</button>
+          <button type="button" data-v="1.9">Duży</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="fnPop" class="fn-pop" hidden><div class="fn-card"><div id="fnText"></div><small>Dotknij, aby zamknąć</small></div></div>
+</section>
+
+<!-- Okno potwierdzenia -->
+<div id="dialog" class="sheet dialog" hidden>
+  <div class="sheet-card">
+    <p id="dlgText"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn" id="dlgNo">Anuluj</button>
+      <button type="button" class="btn btn-danger" id="dlgYes">Usuń</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Ładuję…</p></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
