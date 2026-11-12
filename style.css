@@ -251,6 +251,30 @@ a { color: var(--accent); }
   background: linear-gradient(to bottom, rgba(0, 0, 0, .42), rgba(0, 0, 0, .12) 45%, rgba(0, 0, 0, 0));
 }
 
+/* Czytanie na głos */
+::highlight(tts) { background-color: rgba(255, 196, 0, .42); color: inherit; }
+#reader[data-theme="dark"] ::highlight(tts) { background-color: rgba(255, 196, 0, .28); }
+.tts-bar {
+  position: absolute; z-index: 12; left: 50%; transform: translateX(-50%);
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 6px; padding: 6px;
+  background: rgba(30, 27, 24, .88); color: #fff; border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .3); backdrop-filter: blur(6px);
+  transition: bottom .22s ease;
+}
+#reader.bars .tts-bar { bottom: calc(96px + env(safe-area-inset-bottom)); }
+.tts-play {
+  width: 48px; height: 48px; border-radius: 50%; border: 0; display: grid; place-items: center;
+  background: #e98a3b; color: #fff;
+}
+.tts-play svg { width: 24px; height: 24px; stroke-width: 3; }
+.tts-play .i-play { display: none; fill: currentColor; stroke-width: 2; margin-left: 3px; }
+.tts-play.paused .i-play { display: block; }
+.tts-play.paused .i-pause { display: none; }
+.tts-rate { border: 0; background: rgba(255, 255, 255, .14); color: #fff; border-radius: 999px; padding: 0 14px; min-height: 40px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.tts-bar .icon-btn { color: #fff; }
+#ttsBtn.on { color: #e98a3b; }
+
 /* Paski czytnika */
 .rbar {
   position: absolute; left: 0; right: 0; z-index: 10;

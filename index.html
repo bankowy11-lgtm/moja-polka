@@ -52,6 +52,9 @@
       <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
     <div class="rtitle" id="rTitle"></div>
+    <button class="icon-btn" id="ttsBtn" type="button" aria-label="Czytaj na głos">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>
+    </button>
     <button class="icon-btn" id="bmBtn" type="button" aria-label="Zakładka">
       <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
     </button>
@@ -66,6 +69,18 @@
   <div id="rBottom" class="rbar rbar-bottom">
     <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Przejdź do miejsca w książce">
     <div id="seekInfo" class="seek-info"></div>
+  </div>
+
+  <!-- Czytanie na głos -->
+  <div id="ttsBar" class="tts-bar" hidden>
+    <button type="button" id="ttsPlay" class="tts-play" aria-label="Pauza">
+      <svg class="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+      <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>
+    </button>
+    <button type="button" id="ttsRate" class="tts-rate">Tempo: normalne</button>
+    <button type="button" id="ttsStop" class="icon-btn" aria-label="Zakończ czytanie na głos">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
   </div>
 
   <!-- Spis treści i zakładki -->

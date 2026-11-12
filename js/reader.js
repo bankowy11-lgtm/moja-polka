@@ -1,6 +1,7 @@
 // Czytnik: dzieli rozdział na strony (kolumny CSS) i przewraca kartki w 3D.
 // Na ekranie istnieją naraz najwyżej dwie strony, więc nawet gruba książka działa płynnie.
 import { db } from './db.js';
+import { createTts } from './tts.js';
 
 const $ = id => document.getElementById(id);
 const GAP = 40;                       // odstęp między kolumnami (stronami) w px
@@ -17,7 +18,7 @@ const ui = {
 /* ---------- Ustawienia ---------- */
 
 function loadSettings() {
-  const def = { fontSize: innerWidth < 600 ? 20 : 21, theme: 'light', font: 'serif', lh: '1.65' };
+  const def = { fontSize: innerWidth < 600 ? 20 : 21, theme: 'light', font: 'serif', lh: '1.65', ttsRate: 1 };
   try { return { ...def, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; }
   catch { return def; }
 }
@@ -193,7 +194,41 @@ function afterMove() {
   book.lastOpened = Date.now();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => db.putBook(book).catch(() => {}), 400);
+  tts.onPageShown();
 }
+
+/* ---------- Czytanie na głos ---------- */
+
+const RATES = [[0.8, 'wolne'], [1, 'normalne'], [1.2, 'szybkie']];
+const tts = createTts({
+  pageCols: () => curEl?.querySelector('.cols'),
+  pageBox: () => curEl?.querySelector('.page-box'),
+  chapter: () => pos.ch,
+  isCover: () => pos.ch < 0,
+  turnNext: () => {
+    if (!startFlip(1, 'bottom')) return false;
+    animateTo(true, 760);
+    return true;
+  },
+  nextChapter: () => {
+    const ch = pos.ch + 1;
+    if (!content || ch >= content.chapters.length) return false;
+    if (pos.ch >= 0 && pos.pg === count(pos.ch) - 1 && startFlip(1, 'bottom')) animateTo(true, 760);
+    else show({ ch, pg: 0 });
+    return true;
+  },
+  toast: (m, ms) => opts.toast?.(m, ms),
+  rate: () => Number(S.ttsRate) || 1,
+  onState: ({ active, playing, rate }) => {
+    $('ttsBar').hidden = !active;
+    ui.reader.classList.toggle('tts-on', active);
+    $('ttsBtn').classList.toggle('on', active);
+    $('ttsPlay').classList.toggle('paused', !playing);
+    $('ttsPlay').setAttribute('aria-label', playing ? 'Pauza' : 'Czytaj dalej');
+    $('ttsRate').textContent = 'Tempo: ' + (RATES.find(r => r[0] === rate) || RATES[1])[1];
+  },
+});
+if (!tts.supported) $('ttsBtn').hidden = true;
 
 /* ---------- Przewracanie kartek: zaginanie rogu ---------- */
 // Kartkę ciągnie się za róg (domyślnie prawy dolny). Linia zgięcia to symetralna
@@ -553,6 +588,7 @@ export async function openBook(id, options) {
 
 export function closeBook() {
   if (!book) return;
+  tts.stop();
   finishNow();
   clearTimeout(saveTimer);
   const saving = db.putBook(book).catch(() => {});
@@ -576,6 +612,15 @@ ui.stage.addEventListener('pointercancel', onUp);
 ui.stage.addEventListener('contextmenu', e => e.preventDefault());
 
 $('bmBtn').onclick = toggleBookmark;
+$('ttsBtn').onclick = () => { hideBars(); tts.toggle(); };
+$('ttsPlay').onclick = () => tts.toggle();
+$('ttsStop').onclick = () => tts.stop();
+$('ttsRate').onclick = () => {
+  const k = RATES.findIndex(r => r[0] === (Number(S.ttsRate) || 1));
+  S.ttsRate = RATES[(k + 1) % RATES.length][0];
+  saveSettings();
+  tts.rateChanged();
+};
 $('tocBtn').onclick = () => {
   fillToc();
   openSheet(ui.tocPanel);

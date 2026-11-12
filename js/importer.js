@@ -107,6 +107,40 @@ const INLINE = {
 const SKIP = new Set(['script', 'style', 'head', 'title', 'link', 'meta', 'object', 'embed', 'iframe', 'form',
   'input', 'button', 'select', 'textarea', 'video', 'audio', 'noscript', 'template', 'math', 'canvas']);
 
+/* ---------- Dzielenie bardzo długich rozdziałów ---------- */
+// Niektóre książki mają cały tekst w jednym pliku. Taki „rozdział” dzielimy na części
+// (przy nagłówkach albo co ok. 25 tys. znaków), żeby czytnik działał płynnie na telefonie.
+
+const SPLIT_OVER = 45000, PART = 25000;
+
+function splitChapter(wrap, title) {
+  const total = clean(wrap.textContent).length;
+  if (total <= SPLIT_OVER) return [{ title, html: wrap.innerHTML, chars: total }];
+  let root = wrap;
+  while (root.children.length === 1 && root.firstElementChild.localName === 'div') root = root.firstElementChild;
+  const parts = [];
+  let cur = null;
+  const begin = () => { cur = { nodes: [], chars: 0 }; parts.push(cur); };
+  begin();
+  for (const node of Array.from(root.childNodes)) {
+    const len = clean(node.textContent).length;
+    const isHead = node.nodeType === 1 && /^h[2-4]$/.test(node.localName);
+    if (cur.chars > 0 && ((isHead && cur.chars >= 3000) || cur.chars + len > PART)) begin();
+    cur.nodes.push(node);
+    cur.chars += len;
+  }
+  return parts.filter(p => p.chars > 0).map((p, k) => {
+    const box = document.createElement('div');
+    box.append(...p.nodes);
+    const head = box.firstElementChild && /^h[2-4]$/.test(box.firstElementChild.localName) ? clean(box.firstElementChild.textContent) : '';
+    return {
+      title: (k === 0 ? title : head || `${title} · część ${k + 1}`).slice(0, 90),
+      html: box.innerHTML,
+      chars: p.chars,
+    };
+  });
+}
+
 /* ---------- EPUB ---------- */
 
 export async function importEpub(buf, fileName) {
@@ -267,7 +301,7 @@ export async function importEpub(buf, fileName) {
     const docTitle = clean(byTag(doc, 'title')[0]?.textContent);
     const usableDocTitle = docTitle && !/\.(pl|com|org)\b/i.test(docTitle) && docTitle !== title ? docTitle : '';
     const chTitle = clean(h?.textContent).slice(0, 90) || tocTitles.get(file) || usableDocTitle || `Część ${chapters.length + 1}`;
-    chapters.push({ file, title: chTitle, html: wrap.innerHTML, chars: text.length });
+    for (const part of splitChapter(wrap, chTitle)) chapters.push({ file, ...part });
   }
 
   const notes = {};

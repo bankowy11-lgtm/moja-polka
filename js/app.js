@@ -4,7 +4,19 @@ import { importFile, importEpub } from './importer.js';
 import { openBook, closeBook, readerOpen, closeReaderPanels } from './reader.js';
 
 const $ = id => document.getElementById(id);
-const STARTER_BOOKS = ['books/tajemniczy-ogrod.epub'];
+// Książki startowe z Wolnych Lektur (kolejność = kolejność na półce).
+// Nowe pozycje dopisane tutaj pojawią się także w już zainstalowanej aplikacji.
+const STARTER_BOOKS = [
+  'tajemniczy-ogrod',
+  'hugh-lofting-doktor-dolittle-i-jego-zwierzeta',
+  'andersen-basnie',
+  'o-czym-szumia-wierzby',
+  'heidi',
+  'krol-macius-pierwszy',
+  'przygody-tomka-sawyera',
+  'w-pustyni-i-w-puszczy',
+  'makuszynski-szatan-z-siodmej-klasy',
+];
 
 /* ---------- Drobne elementy interfejsu ---------- */
 
@@ -74,20 +86,31 @@ async function addFiles(files) {
   await renderLibrary();
 }
 
+// Dodaje książki startowe, których jeszcze nie było. Książka raz dodana i potem
+// usunięta przez użytkownika nie wraca (pamiętamy listę dodanych).
 async function seedStarterBooks() {
-  if (await db.getMeta('seeded')) return;
-  for (const url of STARTER_BOOKS) {
+  let done = await db.getMeta('seededBooks');
+  if (!Array.isArray(done)) done = (await db.getMeta('seeded')) ? ['tajemniczy-ogrod'] : [];
+  const todo = STARTER_BOOKS.filter(s => !done.includes(s));
+  if (!todo.length) return;
+  const base = Date.now();
+  let n = 0;
+  for (const slug of todo) {
+    n++;
+    busy(true, todo.length > 1 ? `Układam książki na półce… (${n}/${todo.length})` : 'Układam książki na półce…');
     try {
-      const res = await fetch(url);
+      const res = await fetch(`books/${slug}.epub`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await importEpub(await res.arrayBuffer(), url.split('/').pop());
-      await saveImported(data, { builtin: true });
+      const data = await importEpub(await res.arrayBuffer(), slug + '.epub');
+      // starsze pozycje z listy wyżej na półce
+      await saveImported(data, { builtin: true, addedAt: base - STARTER_BOOKS.indexOf(slug) * 1000 });
+      done.push(slug);
+      await db.setMeta('seededBooks', done);
     } catch (err) {
-      console.error('Nie udało się dodać książki startowej', err);
-      return; // spróbujemy przy następnym uruchomieniu
+      console.error('Nie udało się dodać książki startowej', slug, err);
+      // brak internetu – spróbujemy przy następnym uruchomieniu
     }
   }
-  await db.setMeta('seeded', true);
 }
 
 /* ---------- Półka ---------- */
@@ -240,7 +263,6 @@ addEventListener('drop', e => {
   if (!('indexedDB' in window) || !('DecompressionStream' in window)) {
     toast('Ta przeglądarka jest za stara. Zaktualizuj Chrome.', 8000);
   }
-  busy(true, 'Przygotowuję półkę…');
   try {
     await seedStarterBooks();
   } finally {

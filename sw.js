@@ -1,8 +1,8 @@
 // Network-first: gdy jest internet – zawsze najnowsza wersja; bez internetu – z pamięci.
-const CACHE = 'moja-polka-v2';
+const CACHE = 'moja-polka-v3';
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
-  'js/app.js', 'js/reader.js', 'js/importer.js', 'js/db.js',
+  'js/app.js', 'js/reader.js', 'js/importer.js', 'js/db.js', 'js/tts.js',
   'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
   'books/tajemniczy-ogrod.epub',
 ];
@@ -17,7 +17,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    // no-cache: zawsze pytamy serwer o nowszą wersję (tanie sprawdzenie ETag), więc poprawki widać od razu
+    fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
       if (res.ok) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
