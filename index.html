@@ -138,6 +138,41 @@
           <button type="button" data-v="1.9">Duży</button>
         </div>
       </div>
+      <div class="set-row">
+        <span>Czytanie na głos</span>
+        <button type="button" id="ttsHelpBtn" class="btn">🔊 Sprawdź głos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pomoc: czytanie na głos -->
+  <div id="ttsHelp" class="sheet" hidden>
+    <div class="sheet-card">
+      <div class="tabs">
+        <span class="sheet-title">Czytanie na głos</span>
+        <button type="button" class="icon-btn close-sheet" aria-label="Zamknij">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="help-body">
+        <p id="ttsWhy" class="help-why" hidden></p>
+        <p>Tablet czyta własnym głosem. Jeśli nic nie słychać:</p>
+        <ol class="help-steps">
+          <li><b>Podgłośnij</b> tablet przyciskiem głośności w górę (głośność multimediów).</li>
+          <li>Otwórz <b>Ustawienia</b> tabletu i w wyszukiwarce wpisz <b>„mowę”</b>. Wybierz <b>„Zamiana tekstu na mowę”</b> (albo „Przetwarzanie tekstu na mowę”).</li>
+          <li>Jako <b>preferowany mechanizm</b> wybierz <b>„Usługi mowy Google”</b>. Jeśli ich brak – <a href="https://play.google.com/store/apps/details?id=com.google.android.tts" target="_blank" rel="noopener">zainstaluj je ze Sklepu Play</a>.</li>
+          <li>Stuknij <b>⚙</b> obok „Usługi mowy Google” → <b>Zainstaluj dane głosowe</b> → <b>Polski</b> → pobierz.</li>
+          <li>Ustaw <b>Język</b> na <b>polski</b>, wróć tutaj i stuknij <b>Sprawdź głos</b>.</li>
+        </ol>
+        <div class="help-test">
+          <button type="button" id="ttsTest" class="btn btn-primary">🔊 Sprawdź głos</button>
+          <span id="ttsTestResult" role="status"></span>
+        </div>
+        <details class="help-diag">
+          <summary>Informacje techniczne (wyślij je, jeśli nadal nie działa)</summary>
+          <pre id="ttsDiag"></pre>
+        </details>
+      </div>
     </div>
   </div>
 

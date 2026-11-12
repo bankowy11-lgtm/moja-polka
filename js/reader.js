@@ -18,9 +18,13 @@ const ui = {
 /* ---------- Ustawienia ---------- */
 
 function loadSettings() {
-  const def = { fontSize: innerWidth < 600 ? 20 : 21, theme: 'light', font: 'serif', lh: '1.65', ttsRate: 1 };
-  try { return { ...def, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; }
-  catch { return def; }
+  // Domyślnie spokojne tempo czytania (dla dziecka); ttsV=2 przestawia stare zapisane tempo.
+  const def = { fontSize: innerWidth < 600 ? 20 : 21, theme: 'light', font: 'serif', lh: '1.65', ttsRate: 0.85, ttsV: 2 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (saved.ttsV !== 2) { delete saved.ttsRate; saved.ttsV = 2; }
+    return { ...def, ...saved };
+  } catch { return def; }
 }
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch { /* bez zapisu */ }
@@ -199,7 +203,27 @@ function afterMove() {
 
 /* ---------- Czytanie na głos ---------- */
 
-const RATES = [[0.8, 'wolne'], [1, 'normalne'], [1.2, 'szybkie']];
+const RATES = [[0.7, 'bardzo wolne'], [0.85, 'wolne'], [1, 'normalne'], [1.15, 'szybkie']];
+
+const PROBLEMS = {
+  'no-start': 'Tablet nie wydał dźwięku – najpewniej brakuje polskiego głosu. Wykonaj kroki poniżej.',
+  'too-fast': 'Tablet nie wydał dźwięku – najpewniej brakuje polskiego głosu. Wykonaj kroki poniżej.',
+  'language-unavailable': 'W tablecie brakuje polskiego głosu. Pobierz go według kroków poniżej.',
+  'voice-unavailable': 'W tablecie brakuje polskiego głosu. Pobierz go według kroków poniżej.',
+  'synthesis-unavailable': 'Mechanizm mowy w tablecie jest wyłączony lub nie zainstalowany.',
+  'audio-busy': 'Inna aplikacja używa teraz dźwięku. Zamknij ją i spróbuj ponownie.',
+  'unsupported': 'Ta przeglądarka nie umie czytać na głos. Zaktualizuj Chrome.',
+};
+
+function openTtsHelp(reason) {
+  const why = $('ttsWhy');
+  why.hidden = !reason;
+  why.textContent = reason ? (PROBLEMS[reason] || 'Nie udało się uruchomić głosu. Wykonaj kroki poniżej.') : '';
+  $('ttsTestResult').textContent = '';
+  $('ttsDiag').textContent = tts.diagnostics(reason || '');
+  closeSheets();
+  openSheet($('ttsHelp'));
+}
 const tts = createTts({
   pageCols: () => curEl?.querySelector('.cols'),
   pageBox: () => curEl?.querySelector('.page-box'),
@@ -218,7 +242,9 @@ const tts = createTts({
     return true;
   },
   toast: (m, ms) => opts.toast?.(m, ms),
-  rate: () => Number(S.ttsRate) || 1,
+  title: () => [book?.title, book?.author].filter(Boolean).join('. ') + '.',
+  onProblem: reason => openTtsHelp(reason),
+  rate: () => Number(S.ttsRate) || 0.85,
   onState: ({ active, playing, rate }) => {
     $('ttsBar').hidden = !active;
     ui.reader.classList.toggle('tts-on', active);
@@ -486,7 +512,7 @@ function showNote(text) {
 function openSheet(el) { el.hidden = false; }
 function closeSheets() {
   let closed = false;
-  for (const el of [ui.tocPanel, ui.setPanel, ui.fnPop]) { if (!el.hidden) { el.hidden = true; closed = true; } }
+  for (const el of [ui.tocPanel, ui.setPanel, ui.fnPop, $('ttsHelp')]) { if (!el.hidden) { el.hidden = true; closed = true; } }
   return closed;
 }
 
@@ -615,11 +641,22 @@ $('bmBtn').onclick = toggleBookmark;
 $('ttsBtn').onclick = () => { hideBars(); tts.toggle(); };
 $('ttsPlay').onclick = () => tts.toggle();
 $('ttsStop').onclick = () => tts.stop();
-$('ttsRate').onclick = () => {
-  const k = RATES.findIndex(r => r[0] === (Number(S.ttsRate) || 1));
+function cycleRate() {
+  const k = RATES.findIndex(r => r[0] === (Number(S.ttsRate) || 0.85));
   S.ttsRate = RATES[(k + 1) % RATES.length][0];
   saveSettings();
   tts.rateChanged();
+}
+$('ttsRate').onclick = cycleRate;
+$('ttsHelpBtn').onclick = () => openTtsHelp('');
+$('ttsTest').onclick = async () => {
+  const out = $('ttsTestResult');
+  out.textContent = 'Słuchaj…';
+  const r = await tts.test();
+  out.textContent = r.ok
+    ? '✔ Głos działa. Słyszysz go? Jeśli nie – podgłośnij tablet.'
+    : '✖ ' + (PROBLEMS[r.reason] || 'Głos nie działa.') ;
+  $('ttsDiag').textContent = tts.diagnostics(r.ok ? 'test OK' : r.reason);
 };
 $('tocBtn').onclick = () => {
   fillToc();
@@ -628,7 +665,7 @@ $('tocBtn').onclick = () => {
 };
 $('setBtn').onclick = () => openSheet(ui.setPanel);
 for (const b of document.querySelectorAll('.close-sheet')) b.onclick = closeSheets;
-for (const sheet of [ui.tocPanel, ui.setPanel]) sheet.addEventListener('click', e => { if (e.target === sheet) closeSheets(); });
+for (const sheet of [ui.tocPanel, ui.setPanel, $('ttsHelp')]) sheet.addEventListener('click', e => { if (e.target === sheet) closeSheets(); });
 ui.fnPop.onclick = () => { ui.fnPop.hidden = true; };
 
 for (const tab of ui.tocPanel.querySelectorAll('.tab')) {

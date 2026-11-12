@@ -96,7 +96,7 @@ function whereIs(range, box) {
 export function createTts(h) {
   const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   const synth = supported ? window.speechSynthesis : null;
-  const st = { active: false, playing: false, ch: null, sents: [], i: 0, token: 0, expecting: null, wake: null };
+  const st = { active: false, playing: false, ch: null, sents: [], i: 0, token: 0, expecting: null, wake: null, fast: 0 };
   let voice = null;
 
   function pickVoice() {
@@ -167,19 +167,82 @@ export function createTts(h) {
     } else {
       setHighlight(range);
     }
+    say(s.text, () => { st.i++; speakCurrent(); });
+  }
+
+  // Wypowiada tekst i pilnuje, czy syntezator naprawdę mówi.
+  // Gdy w tablecie brakuje polskiego głosu, zdania „kończą się” natychmiast bez dźwięku –
+  // wtedy zatrzymujemy czytanie i pokazujemy instrukcję, zamiast pędzić przez książkę.
+  function say(text, next) {
     const tok = ++st.token;
-    const u = new SpeechSynthesisUtterance(s.text);
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = 'pl-PL';
     if (voice) u.voice = voice;
     u.rate = h.rate();
-    u.onend = () => { if (tok === st.token && st.playing) { st.i++; speakCurrent(); } };
+    const t0 = performance.now();
+    let started = false;
+    u.onstart = () => { started = true; };
+    u.onend = () => {
+      if (tok !== st.token || !st.playing) return;
+      const took = performance.now() - t0;
+      if (!started || took < Math.min(900, text.length * 20)) {
+        st.fast++;
+        if (st.fast >= 2) { fail(started ? 'too-fast' : 'no-start'); return; }
+      } else {
+        st.fast = 0;
+      }
+      next();
+    };
     u.onerror = e => {
       if (tok !== st.token || e.error === 'interrupted' || e.error === 'canceled') return;
-      if (e.error === 'not-allowed') { pause(); return; }
-      st.i++;
-      setTimeout(speakCurrent, 50);
+      if (e.error === 'not-allowed') { pause(); h.toast('Stuknij ▶, aby zacząć czytać.'); return; }
+      fail(e.error || 'error');
     };
     synth.speak(u);
+  }
+
+  function fail(reason) {
+    stop();
+    h.onProblem?.(reason, diagnostics(reason));
+  }
+
+  function diagnostics(reason = '') {
+    const all = supported ? synth.getVoices() : [];
+    const pl = all.filter(v => /^pl([-_]|$)/i.test(v.lang));
+    return [
+      `Powód: ${reason || '–'}`,
+      `Głosy w urządzeniu: ${all.length}`,
+      `Polskie głosy: ${pl.length ? pl.map(v => v.name + (v.localService ? '' : ' (online)')).join(', ') : 'BRAK'}`,
+      `Wybrany głos: ${voice ? voice.name : 'domyślny systemu'}`,
+      `Tempo: ${h.rate()}`,
+      `Przeglądarka: ${navigator.userAgent}`,
+    ].join('\n');
+  }
+
+  // Próba głosu z ekranu pomocy: zwraca { ok, reason }
+  function test() {
+    return new Promise(resolve => {
+      if (!supported) { resolve({ ok: false, reason: 'unsupported' }); return; }
+      stop();
+      pickVoice();
+      const text = 'Cześć! Tak brzmi czytanie na głos. Miłego czytania!';
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'pl-PL';
+      if (voice) u.voice = voice;
+      u.rate = h.rate();
+      const t0 = performance.now();
+      let started = false, done = false;
+      const finish = r => { if (!done) { done = true; resolve(r); } };
+      u.onstart = () => { started = true; };
+      u.onend = () => {
+        const took = performance.now() - t0;
+        finish(started && took > 900 ? { ok: true } : { ok: false, reason: started ? 'too-fast' : 'no-start' });
+      };
+      u.onerror = e => finish({ ok: false, reason: e.error || 'error' });
+      setTimeout(() => finish(started ? { ok: true } : { ok: false, reason: 'timeout' }), 8000);
+      if (synth.speaking || synth.pending) synth.cancel();
+      synth.speak(u);
+    });
   }
 
   function nextChapter() {
@@ -197,23 +260,26 @@ export function createTts(h) {
     setTimeout(speakCurrent, delay); // po cancel() Chrome potrzebuje chwili
   }
 
-  async function start() {
-    if (!supported) { h.toast('Ta przeglądarka nie umie czytać na głos.', 4000); return; }
-    if (!(await ensureVoice())) {
-      h.toast('Brak polskiego głosu. W telefonie: Ustawienia → Zamiana tekstu na mowę → zainstaluj język polski.', 7000);
-    }
+  // Uwaga: pierwsze zdanie musi zostać wypowiedziane od razu w reakcji na stuknięcie
+  // (bez czekania) – inaczej część tabletów blokuje dźwięk.
+  function start() {
+    if (!supported) { h.onProblem?.('unsupported', diagnostics('unsupported')); return; }
+    pickVoice();
+    if (!voice) ensureVoice();       // głosy czasem wczytują się z opóźnieniem – dobierzemy później
     st.active = true;
     st.playing = true;
+    st.fast = 0;
     emit();
     wakeLock(true);
-    if (h.isCover()) {               // z okładki – zaczynamy od pierwszej strony
-      st.expecting = 'chapter';
-      h.turnNext();
+    if (synth.speaking || synth.pending) synth.cancel();
+    if (h.isCover()) {               // z okładki: najpierw tytuł, potem pierwsza strona
+      say(h.title(), () => { st.expecting = 'chapter'; if (!h.turnNext()) stop(); });
       return;
     }
     loadChapter();
     st.i = firstOnPage();
-    restart();
+    st.token++;
+    speakCurrent();
   }
 
   function pause() {
@@ -268,7 +334,7 @@ export function createTts(h) {
 
   return {
     supported,
-    start, pause, resume, stop, onPageShown,
+    start, pause, resume, stop, onPageShown, test, diagnostics,
     toggle: () => (!st.active ? start() : st.playing ? pause() : resume()),
     get active() { return st.active; },
     get playing() { return st.playing; },
