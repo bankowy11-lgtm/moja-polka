@@ -1,5 +1,5 @@
 // Network-first: gdy jest internet – zawsze najnowsza wersja; bez internetu – z pamięci.
-const CACHE = 'moja-polka-v1';
+const CACHE = 'moja-polka-v2';
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/reader.js', 'js/importer.js', 'js/db.js',

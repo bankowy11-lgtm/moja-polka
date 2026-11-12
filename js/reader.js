@@ -195,68 +195,147 @@ function afterMove() {
   saveTimer = setTimeout(() => db.putBook(book).catch(() => {}), 400);
 }
 
-/* ---------- Przewracanie kartek ---------- */
+/* ---------- Przewracanie kartek: zaginanie rogu ---------- */
+// Kartkę ciągnie się za róg (domyślnie prawy dolny). Linia zgięcia to symetralna
+// odcinka „róg → palec”. Część kartki za tą linią jest odbijana jak w lustrze
+// i pokazuje tył kartki z prześwitującym tekstem – tak jak prawdziwy papier.
 
-function startFlip(dir) {
+const LIFT = 0.14; // jak mocno róg unosi się ku górze podczas przewracania
+
+function clampFold(F, C) {
+  const W = geo.pageW, H = geo.pageH;
+  // Kartka jest przyklejona do grzbietu: róg nie może odjechać dalej niż długość krawędzi.
+  const near = { x: 0, y: C.y }, far = { x: 0, y: H - C.y };
+  let { x, y } = F;
+  let dx = x - near.x, dy = y - near.y, d = Math.hypot(dx, dy);
+  if (d > W) { x = near.x + dx * W / d; y = near.y + dy * W / d; }
+  const diag = Math.hypot(W, H);
+  dx = x - far.x; dy = y - far.y; d = Math.hypot(dx, dy);
+  if (d > diag) { x = far.x + dx * diag / d; y = far.y + dy * diag / d; }
+  return { x, y };
+}
+
+// Przycięcie wielokąta do półpłaszczyzny (P−M)·n ≥ 0 (albo ≤ 0)
+function clipHalf(poly, M, n, positive) {
+  const out = [];
+  const side = p => ((p.x - M.x) * n.x + (p.y - M.y) * n.y) * (positive ? 1 : -1);
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const sa = side(a), sb = side(b);
+    if (sa >= 0) out.push(a);
+    if ((sa >= 0) !== (sb >= 0)) {
+      const t = sa / (sa - sb);
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  return out;
+}
+const polyCss = pts => (pts.length >= 3
+  ? `polygon(${pts.map(p => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(',')})`
+  : 'polygon(0 0, 0 0, 0 0)');
+
+// Uniesienie rogu zależne od tego, jak daleko kartka jest przewrócona (łuk)
+function liftAt(x, C) {
+  const W = geo.pageW;
+  const p = Math.max(0, Math.min(1, (W - x) / (2 * W)));
+  const amount = Math.sin(p * Math.PI) * geo.pageH * LIFT;
+  return C.y > 0 ? -amount : amount; // róg dolny idzie w górę, górny w dół
+}
+
+function startFlip(dir, corner = 'bottom') {
   if (flip) finishNow();
   const target = dir > 0 ? nextPos(pos) : prevPos(pos);
   if (!target) {
     if (dir > 0 && pos.ch >= 0) opts.toast?.('To już koniec książki!');
     return null;
   }
+  const W = geo.pageW, H = geo.pageH;
+  const C = { x: W, y: corner === 'top' ? 0 : H };
   const other = buildPage(target);
-  const flipper = document.createElement('div');
-  flipper.className = 'flipper';
-  const back = document.createElement('div');
-  back.className = 'face back';
-  const shade = document.createElement('div');
-  shade.className = 'flip-shade';
-  const underShade = document.createElement('div');
-  underShade.className = 'under-shade';
-  let under, front;
-  if (dir > 0) {               // bieżąca kartka odchodzi w lewo, pod nią następna
-    under = other; front = curEl;
+  let under, top;
+  if (dir > 0) {              // bieżąca kartka się zagina, pod nią następna
+    under = other; top = curEl;
     ui.stage.prepend(under);
-    curEl.replaceWith(flipper);
-  } else {                     // poprzednia kartka wraca z lewej na bieżącą
-    under = curEl; front = other;
-    ui.stage.appendChild(flipper);
+  } else {                    // poprzednia kartka wraca i się rozprostowuje
+    under = curEl; top = other;
+    ui.stage.appendChild(top);
   }
-  front.classList.add('face', 'front');
-  front.appendChild(shade);
+  top.classList.add('curl-top');
+
+  const el = cls => { const d = document.createElement('div'); d.className = cls; return d; };
+  const flapWrap = el('flap-wrap');
+  const flap = el('flap');
+  const flapPage = buildPage(dir > 0 ? pos : target);
+  flapPage.classList.add('flap-page');
+  const flapShine = el('flap-shine');
+  flap.append(flapPage, el('flap-paper'), flapShine);
+  flapWrap.appendChild(flap);
+  ui.stage.appendChild(flapWrap);
+  const underShade = el('under-shade');
   under.appendChild(underShade);
-  flipper.append(front, back);
-  flip = { dir, target, flipper, front, under, shade, underShade, edge: dir > 0 ? geo.pageW : -geo.pageW, raf: 0 };
-  setEdge(flip.edge);
+
+  flip = { dir, target, under, top, flapWrap, flap, flapShine, underShade, C, raf: 0 };
+  setFold(dir > 0 ? { x: W, y: C.y } : { x: -W, y: C.y });
   return flip;
 }
 
-// edge = położenie wolnego brzegu kartki względem grzbietu (od +szerokości do −szerokości)
-function setEdge(edge) {
-  const w = geo.pageW;
-  const x = Math.max(-1, Math.min(1, edge / w));
-  flip.edge = x * w;
-  const deg = -Math.acos(x) * 180 / Math.PI;
-  const t = -deg / 180;                       // 0 = leży płasko, 1 = przewrócona
-  flip.flipper.style.transform = `rotateY(${deg}deg)`;
-  flip.shade.style.opacity = (t * 0.55).toFixed(3);
-  flip.underShade.style.opacity = ((1 - t) * 0.7).toFixed(3);
-  flip.flipper.style.setProperty('--lift', Math.sin(t * Math.PI).toFixed(3));
+function setFold(Fin) {
+  const f = flip, W = geo.pageW, H = geo.pageH, C = f.C;
+  const F = clampFold(Fin, C);
+  f.F = F;
+  const vx = C.x - F.x, vy = C.y - F.y, len = Math.hypot(vx, vy);
+  if (len < 0.5) {                       // kartka leży płasko
+    f.top.style.clipPath = '';
+    f.flapWrap.style.visibility = 'hidden';
+    f.underShade.style.opacity = '0';
+    return;
+  }
+  f.flapWrap.style.visibility = '';
+  const n = { x: vx / len, y: vy / len };                 // kierunek do rogu
+  const M = { x: (C.x + F.x) / 2, y: (C.y + F.y) / 2 };   // punkt na linii zgięcia
+  const rect = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
+  f.top.style.clipPath = polyCss(clipHalf(rect, M, n, false));
+  f.flap.style.clipPath = polyCss(clipHalf(rect, M, n, true));
+
+  // Odbicie lustrzane względem linii zgięcia
+  const k = 2 * (M.x * n.x + M.y * n.y);
+  const a = 1 - 2 * n.x * n.x, b = -2 * n.x * n.y, d = 1 - 2 * n.y * n.y;
+  f.flap.style.transform = `matrix(${a},${b},${b},${d},${k * n.x},${k * n.y})`;
+
+  // Pasy cienia/połysku ułożone wzdłuż linii zgięcia, po stronie rogu
+  const L = 3 * Math.hypot(W, H);
+  const rot = Math.atan2(-n.x, n.y) * 180 / Math.PI;
+  const band = (node, thick) => {
+    node.style.width = L + 'px';
+    node.style.height = Math.max(1, thick) + 'px';
+    node.style.transform = `translate(${M.x}px,${M.y}px) rotate(${rot}deg) translate(${-L / 2}px,0)`;
+  };
+  const depth = len / 2;
+  band(f.flapShine, depth);
+  band(f.underShade, Math.min(depth, 30 + depth * 0.35));
+  const p = Math.max(0, Math.min(1, (W - F.x) / (2 * W)));
+  f.underShade.style.opacity = (Math.min(1, p * 6) * (1 - p * p)).toFixed(3);
 }
 
+// Przesuwa róg do końca (przewrócona) albo z powrotem (anulowanie), po łuku.
 function animateTo(complete, duration) {
   const f = flip;
-  const from = f.edge;
-  const w = geo.pageW;
-  const to = f.dir > 0 ? (complete ? -w : w) : (complete ? w : -w);
-  const dist = Math.abs(to - from) / (2 * w);
-  const dur = duration ?? 140 + 420 * dist;
+  const W = geo.pageW, C = f.C;
+  const F0 = f.F;
+  const toX = f.dir > 0 ? (complete ? -W : W) : (complete ? W : -W);
+  const extraY = F0.y - C.y - liftAt(F0.x, C);   // ile palec dodatkowo przesunął w pionie
+  const dist = Math.abs(toX - F0.x) / (2 * W);
+  const dur = duration ?? 160 + 460 * dist;
+  const ease = duration
+    ? (q => (q < 0.5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2))
+    : (q => 1 - Math.pow(1 - q, 3));
   const t0 = performance.now();
-  const ease = duration ? (k => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2)) : (k => 1 - Math.pow(1 - k, 3));
   const step = now => {
-    const k = Math.min(1, (now - t0) / dur);
-    setEdge(from + (to - from) * ease(k));
-    if (k < 1) f.raf = requestAnimationFrame(step);
+    const q = Math.min(1, (now - t0) / dur);
+    const e = ease(q);
+    const x = F0.x + (toX - F0.x) * e;
+    setFold({ x, y: C.y + extraY * (1 - e) + liftAt(x, C) });
+    if (q < 1) f.raf = requestAnimationFrame(step);
     else endFlip(complete);
   };
   f.complete = complete;
@@ -271,11 +350,12 @@ function endFlip(complete) {
   cancelAnimationFrame(f.raf);
   clearTimeout(f.timer);
   flip = null;
-  f.shade.remove();
+  f.flapWrap.remove();
   f.underShade.remove();
-  f.front.classList.remove('face', 'front');
-  // dalej: zostaje następna (pod spodem); wstecz: zostaje poprzednia (przewracana)
-  const keep = complete ? (f.dir > 0 ? f.under : f.front) : (f.dir > 0 ? f.front : f.under);
+  f.top.classList.remove('curl-top');
+  f.top.style.clipPath = '';
+  // dalej: zostaje następna (pod spodem); wstecz: zostaje poprzednia (rozprostowana)
+  const keep = complete ? (f.dir > 0 ? f.under : f.top) : (f.dir > 0 ? f.top : f.under);
   curEl = keep;
   ui.stage.replaceChildren(keep);
   if (complete) { pos = f.target; anchor = null; afterMove(); }
@@ -285,16 +365,25 @@ function finishNow() { if (flip) endFlip(flip.complete ?? true); }
 
 function turn(dir) {
   hideBars();
-  if (startFlip(dir)) animateTo(true, 620);
+  if (startFlip(dir, 'bottom')) animateTo(true, 760);
 }
 
 /* ---------- Dotyk i mysz ---------- */
 
 let ptr = null;
 
+function pagePoint(e) {
+  const r = ui.stage.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
 function onDown(e) {
   if (e.button > 0 || !book) return;
-  ptr = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), drag: false, hist: [] };
+  if (flip && flip.complete === undefined) {   // kartka jest właśnie trzymana palcem
+    if (ptr?.drag) return;                     // drugi palec – ignorujemy
+    animateTo(false);                          // porzucone zagięcie – kartka wraca na miejsce
+  }
+  ptr = { id: e.pointerId, x0: e.clientX, y0: e.clientY, p0: pagePoint(e), drag: false, hist: [] };
 }
 
 function onMove(e) {
@@ -303,16 +392,22 @@ function onMove(e) {
   if (!ptr.drag) {
     if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;
     hideBars();
-    if (!startFlip(dx < 0 ? 1 : -1)) { ptr = null; return; }
+    // Złapanie w górnej części strony zagina górny róg, w pozostałych – dolny.
+    const corner = ptr.p0.y < geo.pageH * 0.3 ? 'top' : 'bottom';
+    if (!startFlip(dx < 0 ? 1 : -1, corner)) { ptr = null; return; }
     ptr.drag = true;
-    ptr.edge0 = flip.edge;
     ptr.x0 = e.clientX;
+    ptr.y0 = e.clientY;
     try { ui.stage.setPointerCapture(e.pointerId); } catch { /* ok */ }
   }
   const now = performance.now();
   ptr.hist.push([now, e.clientX]);
   while (ptr.hist.length > 2 && now - ptr.hist[0][0] > 100) ptr.hist.shift();
-  setEdge(ptr.edge0 + (e.clientX - ptr.x0) * 1.15);
+  const W = geo.pageW, C = flip.C;
+  const mx = e.clientX - ptr.x0, my = e.clientY - ptr.y0;
+  // Róg podąża za palcem; w trakcie ruchu unosi się po łuku ku przeciwległemu rogowi.
+  const x = flip.dir > 0 ? W + mx * 1.15 : -W + mx * 2;
+  setFold({ x, y: C.y + my + liftAt(x, C) });
 }
 
 function onUp(e) {
@@ -321,11 +416,13 @@ function onUp(e) {
   ptr = null;
   if (p.drag && flip) {
     const h = p.hist;
-    const v = h.length > 1 ? (h[h.length - 1][1] - h[0][1]) / Math.max(1, h[h.length - 1][0] - h[0][0]) : 0;
-    const w = geo.pageW;
+    // prędkość ruchu palca tuż przed puszczeniem (gdy palec się zatrzymał – zero)
+    const stopped = !h.length || performance.now() - h[h.length - 1][0] > 120;
+    const v = !stopped && h.length > 1 ? (h[h.length - 1][1] - h[0][1]) / Math.max(1, h[h.length - 1][0] - h[0][0]) : 0;
+    const w = geo.pageW, x = flip.F.x;
     const complete = flip.dir > 0
-      ? (v < -0.35 || (flip.edge < w * 0.55 && v < 0.35))
-      : (v > 0.35 || (flip.edge > -w * 0.55 && v > -0.35));
+      ? (v < -0.35 || (x < w * 0.3 && v < 0.35))
+      : (v > 0.35 || (x > -w * 0.3 && v > -0.35));
     animateTo(complete);
     return;
   }
