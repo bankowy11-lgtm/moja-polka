@@ -326,7 +326,11 @@ export async function importEpub(buf, fileName) {
   const finalChapters = chapters.filter(c => !noteFiles.has(c.file)).map(({ file, ...c }) => c);
   if (!finalChapters.length) throw new Error('Nie znalazłem w tym pliku tekstu do czytania.');
 
-  return { title, author, cover, chapters: finalChapters, notes };
+  // Książki z Wolnych Lektur mają w identyfikatorze adres – po nim znajdziemy nagranie lektora.
+  const ident = clean(opf.getElementsByTagNameNS(DC, 'identifier')[0]?.textContent);
+  const wlSlug = (ident.match(/wolnelektury\.pl\/katalog\/lektura\/([a-z0-9-]+)/) || [])[1] || null;
+
+  return { title, author, cover, chapters: finalChapters, notes, wlSlug };
 }
 
 /* ---------- TXT ---------- */

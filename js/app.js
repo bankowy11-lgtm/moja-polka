@@ -59,7 +59,7 @@ async function saveImported(data, extra = {}) {
   const meta = {
     id, title: data.title, author: data.author || '', cover: data.cover || null,
     hue: hueOf(data.title), addedAt: Date.now(), lastOpened: 0,
-    chapterCount: data.chapters.length, progress: null, bookmarks: [], ...extra,
+    chapterCount: data.chapters.length, progress: null, bookmarks: [], wlSlug: data.wlSlug || null, ...extra,
   };
   await db.addBook(meta, { chapters: data.chapters, notes: data.notes || {} });
   return { book: meta };

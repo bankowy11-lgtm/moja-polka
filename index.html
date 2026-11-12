@@ -52,6 +52,9 @@
       <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
     <div class="rtitle" id="rTitle"></div>
+    <button class="icon-btn" id="audioBtn" type="button" aria-label="Lektor – audiobook" hidden>
+      <svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/></svg>
+    </button>
     <button class="icon-btn" id="ttsBtn" type="button" aria-label="Czytaj na głos">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>
     </button>
@@ -81,6 +84,50 @@
     <button type="button" id="ttsStop" class="icon-btn" aria-label="Zakończ czytanie na głos">
       <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
+  </div>
+
+  <!-- Lektor (audiobook) -->
+  <div id="audioBar" class="audio-bar" hidden>
+    <div class="ab-top">
+      <span class="ab-badge">🎧</span>
+      <div class="ab-info"><strong id="abTitle"></strong><small id="abArtist"></small></div>
+      <button type="button" id="abList" class="icon-btn" aria-label="Lista nagrań">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </button>
+      <button type="button" id="abClose" class="icon-btn" aria-label="Zamknij lektora">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <input type="range" id="abSeek" min="0" max="1000" value="0" aria-label="Przewiń nagranie">
+    <div class="ab-times"><span id="abCur">0:00</span><span id="abCount"></span><span id="abDur">0:00</span></div>
+    <div class="ab-ctrl">
+      <button type="button" id="abRate" class="ab-rate" aria-label="Tempo lektora">1×</button>
+      <button type="button" id="abPrev" class="icon-btn" aria-label="Poprzedni rozdział">
+        <svg viewBox="0 0 24 24"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg>
+      </button>
+      <button type="button" id="abBack" class="icon-btn ab-skip" aria-label="15 sekund wstecz">−15</button>
+      <button type="button" id="abPlay" class="ab-play" aria-label="Pauza">
+        <svg class="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+        <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>
+      </button>
+      <button type="button" id="abFwd" class="icon-btn ab-skip" aria-label="15 sekund do przodu">+15</button>
+      <button type="button" id="abNext" class="icon-btn" aria-label="Następny rozdział">
+        <svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg>
+      </button>
+      <span class="ab-spacer"></span>
+    </div>
+  </div>
+
+  <div id="abPanel" class="sheet" hidden>
+    <div class="sheet-card">
+      <div class="tabs">
+        <span class="sheet-title">Nagrania lektora</span>
+        <button type="button" class="icon-btn close-sheet" aria-label="Zamknij">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <ol id="abTracks" class="list"></ol>
+    </div>
   </div>
 
   <!-- Spis treści i zakładki -->

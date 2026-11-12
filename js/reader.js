@@ -2,6 +2,7 @@
 // Na ekranie istnieją naraz najwyżej dwie strony, więc nawet gruba książka działa płynnie.
 import { db } from './db.js';
 import { createTts } from './tts.js';
+import { createAudioPlayer } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const GAP = 40;                       // odstęp między kolumnami (stronami) w px
@@ -255,6 +256,28 @@ const tts = createTts({
   },
 });
 if (!tts.supported) $('ttsBtn').hidden = true;
+
+/* ---------- Lektor (audiobook z Wolnych Lektur) ---------- */
+
+const audio = createAudioPlayer({
+  book: () => book,
+  chapters: () => content.chapters,
+  pos: () => pos,
+  chapterStartFrac: ch => (prefix[ch] || 0) / total,
+  showChapter: ch => { finishNow(); show({ ch, pg: 0 }); },
+  save: () => { if (book) db.putBook(book).catch(() => {}); },
+  toast: (m, ms) => opts.toast?.(m, ms),
+  rate: () => Number(S.audioRate) || 1,
+  setRate: r => { S.audioRate = r; saveSettings(); },
+  stopTts: () => tts.stop(),
+  onActive: on => {
+    $('audioBar').hidden = !on;
+    ui.reader.classList.toggle('audio-on', on);
+    $('audioBtn').classList.toggle('on', on);
+  },
+  openSheet: el => openSheet(el),
+  closeSheets: () => closeSheets(),
+});
 
 /* ---------- Przewracanie kartek: zaginanie rogu ---------- */
 // Kartkę ciągnie się za róg (domyślnie prawy dolny). Linia zgięcia to symetralna
@@ -512,7 +535,7 @@ function showNote(text) {
 function openSheet(el) { el.hidden = false; }
 function closeSheets() {
   let closed = false;
-  for (const el of [ui.tocPanel, ui.setPanel, ui.fnPop, $('ttsHelp')]) { if (!el.hidden) { el.hidden = true; closed = true; } }
+  for (const el of [ui.tocPanel, ui.setPanel, ui.fnPop, $('ttsHelp'), $('abPanel')]) { if (!el.hidden) { el.hidden = true; closed = true; } }
   return closed;
 }
 
@@ -598,6 +621,12 @@ export async function openBook(id, options) {
   coverUrl = book.cover ? URL.createObjectURL(book.cover) : null;
 
   ui.title.textContent = book.title;
+  // przycisk lektora tylko dla książek z nagraniem (sprawdzane w tle, gdy jest internet)
+  const opened = book;
+  $('audioBtn').hidden = !audio.available(book);
+  if (!$('audioBtn').hidden && !book.audioTracks) {
+    audio.prefetch(book).then(has => { if (book === opened && has === false) $('audioBtn').hidden = true; });
+  }
   ui.reader.hidden = false;
   ui.reader.classList.remove('bars');
   closeSheets();
@@ -615,6 +644,7 @@ export async function openBook(id, options) {
 export function closeBook() {
   if (!book) return;
   tts.stop();
+  audio.close();
   finishNow();
   clearTimeout(saveTimer);
   const saving = db.putBook(book).catch(() => {});
@@ -638,7 +668,12 @@ ui.stage.addEventListener('pointercancel', onUp);
 ui.stage.addEventListener('contextmenu', e => e.preventDefault());
 
 $('bmBtn').onclick = toggleBookmark;
-$('ttsBtn').onclick = () => { hideBars(); tts.toggle(); };
+$('ttsBtn').onclick = () => { hideBars(); audio.close(); tts.toggle(); };
+$('audioBtn').onclick = () => {
+  hideBars();
+  if (audio.active) audio.toggle();
+  else audio.open();
+};
 $('ttsPlay').onclick = () => tts.toggle();
 $('ttsStop').onclick = () => tts.stop();
 function cycleRate() {
@@ -665,7 +700,7 @@ $('tocBtn').onclick = () => {
 };
 $('setBtn').onclick = () => openSheet(ui.setPanel);
 for (const b of document.querySelectorAll('.close-sheet')) b.onclick = closeSheets;
-for (const sheet of [ui.tocPanel, ui.setPanel, $('ttsHelp')]) sheet.addEventListener('click', e => { if (e.target === sheet) closeSheets(); });
+for (const sheet of [ui.tocPanel, ui.setPanel, $('ttsHelp'), $('abPanel')]) sheet.addEventListener('click', e => { if (e.target === sheet) closeSheets(); });
 ui.fnPop.onclick = () => { ui.fnPop.hidden = true; };
 
 for (const tab of ui.tocPanel.querySelectorAll('.tab')) {
